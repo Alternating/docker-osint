@@ -63,6 +63,25 @@ existing tunnel. Both files are untracked, so redeploys leave them alone, and
 `RP_ID`/`RP_ORIGIN` stay unchanged — the public hostname is what matters, not
 the internal port.
 
+### Turning the bundled tunnel on later
+
+The playbook never edits a live `.env` or override, so enabling the bundled
+cloudflared after the fact is a one-time change on the deploy host:
+
+```bash
+cd /opt/suron
+sudo sed -i 's|^CLOUDFLARE_TUNNEL_TOKEN=.*|CLOUDFLARE_TUNNEL_TOKEN=<token from the Zero Trust wizard>|' .env
+echo 'COMPOSE_PROFILES=bundled-tunnel' | sudo tee -a .env
+sudo docker compose up -d
+```
+
+`COMPOSE_PROFILES` in `.env` re-enables the profile-parked cloudflared for
+every future `docker compose up -d` — playbook runs included — while the NPM
+host-port mapping keeps working alongside it (public traffic → tunnel →
+`suron:3000`; LAN → NPM → `:3001`). Then finish the wizard: once the
+connector shows as connected, set the tunnel's public hostname to
+`osint.alt-dev.com → http://suron:3000`.
+
 ## Local development
 
 ```bash
