@@ -10,6 +10,17 @@
 #   suron_branch - git ref to deploy    (default: main)
 #   suron_dir    - checkout directory   (default: /opt/suron)
 #
+# Secrets via the Semaphore "Service-Variables" variable group (extra vars):
+#   suron_setup_password   - if defined, .env is rendered on FIRST deploy only
+#                            (never overwritten afterwards; without it the
+#                            .env must already exist on the host)
+#   suron_cloudflared_token - bundled-tunnel token (default: empty = disabled;
+#                            do NOT reuse the dunwoody cloudflared_tunnel_token
+#                            here — Suron is fronted by Nginx Proxy Manager)
+#   suron_host_port        - host port NPM forwards to (default: 3001)
+#   suron_bundled_tunnel   - set true to skip the host-port override and use
+#                            the bundled cloudflared instead (default: false)
+#
 # Targeting: Suron is a single-instance app (one Cloudflare tunnel token, one
 # admin account) — deploy it to exactly ONE Docker host. Either define a
 # `suron` group in the inventory containing that host, or pass
@@ -83,8 +94,32 @@
       register: suron_git
 
     # ------------------------------------------------------------------
-    # 3. Runtime secrets must already exist on the host
+    # 3. Runtime secrets: render .env from Semaphore variables on first
+    #    deploy; an existing .env is never touched
     # ------------------------------------------------------------------
+    - name: Create runtime .env from Semaphore variables (first deploy only)
+      ansible.builtin.copy:
+        dest: "{{ _suron_dir }}/.env"
+        force: false
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          SETUP_PASSWORD={{ suron_setup_password }}
+          CLOUDFLARE_TUNNEL_TOKEN={{ suron_cloudflared_token | default('') }}
+          SURON_HOST_PORT={{ suron_host_port | default(3001) }}
+      when: suron_setup_password is defined
+      no_log: true
+
+    - name: Enable the host-port override for Nginx Proxy Manager
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ _suron_dir }}/docker-compose.hostport.example.yml"
+        dest: "{{ _suron_dir }}/docker-compose.override.yml"
+        force: false
+        mode: "0644"
+      when: not (suron_bundled_tunnel | default(false) | bool)
+
     - name: Check for the runtime .env file
       ansible.builtin.stat:
         path: "{{ _suron_dir }}/.env"
@@ -96,9 +131,11 @@
           - suron_env_file.stat.exists
           - suron_env_file.stat.isreg | default(false)
         fail_msg: >-
-          Missing {{ _suron_dir }}/.env on the target host. Create it manually
-          with SETUP_PASSWORD and CLOUDFLARE_TUNNEL_TOKEN before deploying.
-          This playbook intentionally never creates or overwrites that file.
+          Missing {{ _suron_dir }}/.env on the target host. Either add
+          suron_setup_password to the Semaphore "Service-Variables" group so
+          this playbook renders it on first deploy, or create it manually with
+          SETUP_PASSWORD (and optional CLOUDFLARE_TUNNEL_TOKEN /
+          SURON_HOST_PORT). An existing .env is never overwritten.
         success_msg: "Runtime .env found at {{ _suron_dir }}/.env"
 
     # ------------------------------------------------------------------

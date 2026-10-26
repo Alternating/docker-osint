@@ -83,9 +83,19 @@ Semaphore. Copy (or sync) it into the playbook repo at
 `/home/alter/dev/Dunwoody-Estates-Home` on 192.168.1.10. It:
 
 1. clones/updates this repo on the target (`suron_dir`, default `/opt/suron`)
-2. asserts `.env` exists there (it never creates or overwrites secrets)
-3. `docker compose build --pull && docker compose up -d --remove-orphans`
-4. health-checks `/api/auth/state` inside the container and prints a recap
+2. renders `.env` on first deploy from the Semaphore **Service-Variables**
+   group if `suron_setup_password` is defined there (mode 0600, `no_log`);
+   an existing `.env` is never touched, and without the variable it must
+   already exist on the host
+3. drops the host-port override for Nginx Proxy Manager (port
+   `suron_host_port`, default 3001) unless `suron_bundled_tunnel=true`
+4. `docker compose build --pull && docker compose up -d --remove-orphans`
+5. health-checks `/api/auth/state` inside the container and prints a recap
+
+Zero-touch first deploy: add `suron_setup_password` to the Service-Variables
+group (and nothing else — the bundled tunnel stays off and NPM fronts host
+port 3001). Don't point `suron_cloudflared_token` at the existing
+`cloudflared_tunnel_token`; that token belongs to the dunwoody tunnel.
 
 The play targets the inventory group `suron` by default — add exactly one
 Docker host to that group in the inventory repo, or pass
