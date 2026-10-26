@@ -65,22 +65,17 @@ the internal port.
 
 ### Turning the bundled tunnel on later
 
-The playbook never edits a live `.env` or override, so enabling the bundled
-cloudflared after the fact is a one-time change on the deploy host:
-
-```bash
-cd /opt/suron
-sudo sed -i 's|^CLOUDFLARE_TUNNEL_TOKEN=.*|CLOUDFLARE_TUNNEL_TOKEN=<token from the Zero Trust wizard>|' .env
-echo 'COMPOSE_PROFILES=bundled-tunnel' | sudo tee -a .env
-sudo docker compose up -d
-```
-
-`COMPOSE_PROFILES` in `.env` re-enables the profile-parked cloudflared for
-every future `docker compose up -d` — playbook runs included — while the NPM
-host-port mapping keeps working alongside it (public traffic → tunnel →
-`suron:3000`; LAN → NPM → `:3001`). Then finish the wizard: once the
-connector shows as connected, set the tunnel's public hostname to
-`osint.alt-dev.com → http://suron:3000`.
+No host-side edits — the `.env` is playbook-managed. Add the token from the
+Zero Trust wizard to the Semaphore Service-Variables group as a Secret-type
+variable named `suron_cloudflared_token` and re-run the deploy task. A
+non-empty token renders `COMPOSE_PROFILES=bundled-tunnel` into `.env`, which
+starts the profile-parked cloudflared alongside the NPM host-port mapping
+(public traffic → tunnel → `suron:3000`; LAN → NPM → `:3001`). Then finish
+the wizard: once the connector shows as connected, set the tunnel's public
+hostname to `osint.alt-dev.com → http://suron:3000`. Removing the variable
+and re-running stops managing the connector on future `up`s; to retire a
+running one, also do `docker compose --profile bundled-tunnel rm -sf
+cloudflared` once on the host.
 
 ## Local development
 
@@ -102,12 +97,13 @@ Semaphore. Copy (or sync) it into the playbook repo at
 `/home/alter/dev/Dunwoody-Estates-Home` on 192.168.1.10. It:
 
 1. clones/updates this repo on the target (`suron_dir`, default `/opt/suron`)
-2. renders `.env` on first deploy from the Semaphore **Service-Variables**
-   group if `suron_setup_password` is defined there (mode 0600, `no_log`);
-   an existing `.env` is never touched, and without the variable it must
-   already exist on the host
+2. renders `.env` from the Semaphore **Service-Variables** group on **every
+   run** (mode 0600, `no_log`) — the same managed-config pattern as the
+   Vaultwarden/Plane playbooks; never hand-edit it on the host, changes
+   belong in Semaphore. `suron_setup_password` is required.
 3. drops the host-port override for Nginx Proxy Manager (port
-   `suron_host_port`, default 3001) unless `suron_bundled_tunnel=true`
+   `suron_host_port`, default 3001); a non-empty `suron_cloudflared_token`
+   additionally enables the bundled cloudflared via `COMPOSE_PROFILES`
 4. `docker compose build --pull && docker compose up -d --remove-orphans`
 5. health-checks `/api/auth/state` inside the container and prints a recap
 

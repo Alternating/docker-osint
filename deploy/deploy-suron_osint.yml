@@ -13,16 +13,20 @@
 # Secrets via the Semaphore "Service-Variables" variable group. Per
 # semaphore-secrets-exposure.md in the Dunwoody repo, create secret values as
 # SECRET-type variables, never plain ones (plain extra variables land on the
-# ansible-playbook command line):
-#   suron_setup_password   - if defined, .env is rendered on FIRST deploy only
-#                            (never overwritten afterwards; without it the
-#                            .env must already exist on the host)
-#   suron_cloudflared_token - bundled-tunnel token (default: empty = disabled;
-#                            do NOT reuse the dunwoody cloudflared_tunnel_token
-#                            here — Suron is fronted by Nginx Proxy Manager)
-#   suron_host_port        - host port NPM forwards to (default: 3001)
-#   suron_bundled_tunnel   - set true to skip the host-port override and use
-#                            the bundled cloudflared instead (default: false)
+# ansible-playbook command line).
+#
+# The runtime .env is MANAGED: re-rendered from these variables on every run,
+# exactly like deploy-vaultwarden.yml / deploy-plane.yml render their compose
+# files. Never hand-edit it on the host — changes belong in Semaphore.
+#   suron_setup_password    - REQUIRED. One-time account bootstrap password;
+#                             only consulted until the first passkey exists.
+#   suron_cloudflared_token - bundled-tunnel connector token. Non-empty value
+#                             switches COMPOSE_PROFILES=bundled-tunnel on (the
+#                             vaultwarden cloudflared_enabled convention); do
+#                             NOT reuse the dunwoody cloudflared_tunnel_token
+#                             — each service gets its own tunnel.
+#   suron_host_port         - host port NPM forwards to (default: 3001, also
+#                             registered in host_vars/192.168.1.10.yml)
 #
 # Targeting: Suron is a single-instance app (one Cloudflare tunnel token, one
 # admin account) — deploy it to exactly ONE Docker host. Either define a
@@ -32,7 +36,6 @@
 #
 # Prerequisites on the target host (NOT managed by this playbook):
 #   - Docker Engine with the compose v2 plugin
-#   - {{ suron_dir }}/.env containing SETUP_PASSWORD and CLOUDFLARE_TUNNEL_TOKEN
 
 - name: Deploy Suron OSINT platform
   hosts: "{{ suron_hosts | default('suron') }}"
@@ -43,6 +46,11 @@
     _suron_repo: "{{ suron_repo | default('https://github.com/Alternating/docker-osint.git') }}"
     _suron_branch: "{{ suron_branch | default('main') }}"
     _suron_dir: "{{ suron_dir | default('/opt/suron') }}"
+    # Empty by default; the Semaphore Environment's extra var of the same
+    # name overrides this (extra vars win over play vars) — the same pattern
+    # deploy-vaultwarden.yml uses for its connector.
+    suron_cloudflared_token: ""
+    suron_bundled_tunnel_enabled: "{{ (suron_cloudflared_token | default('', true) | string | length) > 0 }}"
 
   tasks:
     # ------------------------------------------------------------------
@@ -97,21 +105,36 @@
       register: suron_git
 
     # ------------------------------------------------------------------
-    # 3. Runtime secrets: render .env from Semaphore variables on first
-    #    deploy; an existing .env is never touched
+    # 3. Runtime config: .env is rendered from Semaphore variables on
+    #    EVERY run (house pattern — no manual edits on the host, ever)
     # ------------------------------------------------------------------
-    - name: Create runtime .env from Semaphore variables (first deploy only)
+    - name: Fail fast if the setup password variable is missing
+      ansible.builtin.assert:
+        that:
+          - suron_setup_password is defined
+          - suron_setup_password is string
+          - suron_setup_password | length > 0
+        fail_msg: >-
+          suron_setup_password must be set as a SECRET-type variable in the
+          Semaphore "Service-Variables" Environment (plain extra variables
+          land on the ansible-playbook command line -- see
+          semaphore-secrets-exposure.md).
+        quiet: true
+      no_log: true
+
+    # Inline content rather than a templates/*.j2 file so this playbook stays
+    # a single file to sync into the Dunwoody repo.
+    - name: Render the runtime .env (managed by this playbook)
       ansible.builtin.copy:
         dest: "{{ _suron_dir }}/.env"
-        force: false
         owner: root
         group: root
         mode: "0600"
         content: |
           SETUP_PASSWORD={{ suron_setup_password }}
-          CLOUDFLARE_TUNNEL_TOKEN={{ suron_cloudflared_token | default('') }}
+          CLOUDFLARE_TUNNEL_TOKEN={{ suron_cloudflared_token }}
           SURON_HOST_PORT={{ suron_host_port | default(3001) }}
-      when: suron_setup_password is defined
+          COMPOSE_PROFILES={{ 'bundled-tunnel' if suron_bundled_tunnel_enabled else '' }}
       no_log: true
 
     - name: Enable the host-port override for Nginx Proxy Manager
@@ -121,25 +144,6 @@
         dest: "{{ _suron_dir }}/docker-compose.override.yml"
         force: false
         mode: "0644"
-      when: not (suron_bundled_tunnel | default(false) | bool)
-
-    - name: Check for the runtime .env file
-      ansible.builtin.stat:
-        path: "{{ _suron_dir }}/.env"
-      register: suron_env_file
-
-    - name: Assert that the runtime .env file exists
-      ansible.builtin.assert:
-        that:
-          - suron_env_file.stat.exists
-          - suron_env_file.stat.isreg | default(false)
-        fail_msg: >-
-          Missing {{ _suron_dir }}/.env on the target host. Either add
-          suron_setup_password to the Semaphore "Service-Variables" group so
-          this playbook renders it on first deploy, or create it manually with
-          SETUP_PASSWORD (and optional CLOUDFLARE_TUNNEL_TOKEN /
-          SURON_HOST_PORT). An existing .env is never overwritten.
-        success_msg: "Runtime .env found at {{ _suron_dir }}/.env"
 
     # ------------------------------------------------------------------
     # 4. Build and start the stack
