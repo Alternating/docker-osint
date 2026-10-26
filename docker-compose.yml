@@ -18,7 +18,10 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: suron-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    # `?` (not `:?`) so an explicitly EMPTY token is allowed — that's the
+    # signal that docker-compose.override.yml disables this service in favor
+    # of an existing host cloudflared (see docker-compose.hostport.example.yml).
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN?set CLOUDFLARE_TUNNEL_TOKEN in .env}
     depends_on:
       - suron
 

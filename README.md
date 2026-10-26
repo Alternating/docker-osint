@@ -44,6 +44,25 @@ setup and register your passkey.
 > `RP_ORIGIN=https://osint.alt-dev.com`) are set in docker-compose.yml and must
 > match the public hostname.
 
+### Reusing an existing tunnel (host port 3000 is taken)
+
+On 192.168.1.10, host port 3000 already belongs to Semaphore's UI
+(`semaphore.dunwoody.alt-dev.com`). Suron's default setup never touches host
+ports — the bundled cloudflared reaches it at `http://suron:3000` on the
+compose network, which cannot conflict. To skip the bundled tunnel and reuse
+the existing one instead, on the deploy host:
+
+```bash
+cp docker-compose.hostport.example.yml docker-compose.override.yml
+echo 'CLOUDFLARE_TUNNEL_TOKEN=' >> .env   # empty = bundled tunnel stays off
+```
+
+Suron then publishes host port **3001** (`SURON_HOST_PORT` to change it); add
+a public hostname `osint.alt-dev.com → http://192.168.1.10:3001` on the
+existing tunnel. Both files are untracked, so redeploys leave them alone, and
+`RP_ID`/`RP_ORIGIN` stay unchanged — the public hostname is what matters, not
+the internal port.
+
 ## Local development
 
 ```bash

@@ -1,0 +1,24 @@
+# Expose Suron through an EXISTING cloudflared (e.g. the dunwoody tunnel that
+# already serves Semaphore) instead of the bundled one.
+#
+# On the deploy host, next to .env:
+#
+#   cp docker-compose.hostport.example.yml docker-compose.override.yml
+#   echo 'CLOUDFLARE_TUNNEL_TOKEN=' >> .env   # empty token = bundled tunnel stays off
+#
+# docker compose picks up docker-compose.override.yml automatically, and the
+# playbook's forced git update leaves untracked files (this and .env) alone.
+#
+# Host port 3000 on 192.168.1.10 is Semaphore's UI, so Suron defaults to 3001.
+# Point the tunnel's public hostname osint.alt-dev.com at
+# http://192.168.1.10:3001. To restrict the bind to one interface, prefix an
+# IP: "192.168.1.10:3001:3000".
+services:
+  suron:
+    ports:
+      - "${SURON_HOST_PORT:-3001}:3000"
+
+  # Assigning a profile keeps the bundled tunnel from starting under a plain
+  # `docker compose up -d`.
+  cloudflared:
+    profiles: ["bundled-tunnel"]
