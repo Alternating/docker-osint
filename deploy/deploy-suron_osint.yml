@@ -5,16 +5,23 @@
 # Semaphore, hence `hosts: all`.
 #
 # Overridable extra vars:
+#   suron_hosts  - inventory host/group to deploy to (default: suron)
 #   suron_repo   - git repository URL   (default: https://github.com/Alternating/docker-osint.git)
 #   suron_branch - git ref to deploy    (default: main)
 #   suron_dir    - checkout directory   (default: /opt/suron)
+#
+# Targeting: Suron is a single-instance app (one Cloudflare tunnel token, one
+# admin account) — deploy it to exactly ONE Docker host. Either define a
+# `suron` group in the inventory containing that host, or pass
+# `suron_hosts=<host-or-group>` as a Semaphore extra var. If the pattern
+# matches nothing, the play skips cleanly instead of touching every host.
 #
 # Prerequisites on the target host (NOT managed by this playbook):
 #   - Docker Engine with the compose v2 plugin
 #   - {{ suron_dir }}/.env containing SETUP_PASSWORD and CLOUDFLARE_TUNNEL_TOKEN
 
 - name: Deploy Suron OSINT platform
-  hosts: all
+  hosts: "{{ suron_hosts | default('suron') }}"
   become: true
   any_errors_fatal: true
 

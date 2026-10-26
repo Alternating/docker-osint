@@ -68,7 +68,13 @@ Semaphore. Copy (or sync) it into the playbook repo at
 3. `docker compose build --pull && docker compose up -d --remove-orphans`
 4. health-checks `/api/auth/state` inside the container and prints a recap
 
-Override `suron_repo` / `suron_branch` / `suron_dir` as Semaphore extra vars.
+The play targets the inventory group `suron` by default — add exactly one
+Docker host to that group in the inventory repo, or pass
+`suron_hosts=<host-or-group>` as a Semaphore extra var. Never point it at
+`all`: Suron is single-instance (one tunnel token, one admin), and on a mixed
+inventory any host without Docker fails the preflight assert and
+`any_errors_fatal` aborts the whole run. Also override
+`suron_repo` / `suron_branch` / `suron_dir` as extra vars if needed.
 
 ## Repo layout
 
