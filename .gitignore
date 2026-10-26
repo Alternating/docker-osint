@@ -1,0 +1,28 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+
+# local runtime data (sqlite db, scan job output)
+data/
+!data/.gitkeep
+
+# third-party OSINT tool clones — fetched by `make tools` locally and by the
+# Dockerfile at build time; never committed to this repo
+tools/photon/
+tools/sherlock/
+tools/awesome-osint/
+
+# generated resource index (rebuilt from tools/awesome-osint at build time)
+lib/generated/
+
+# env / secrets
+.env
+.env.local
+.env*.local
+
+# misc
+*.log
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

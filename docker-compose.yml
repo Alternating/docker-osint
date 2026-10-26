@@ -1,0 +1,26 @@
+services:
+  suron:
+    build: .
+    image: suron-osint:latest
+    container_name: suron
+    restart: unless-stopped
+    environment:
+      RP_ID: ${RP_ID:-osint.alt-dev.com}
+      RP_ORIGIN: ${RP_ORIGIN:-https://osint.alt-dev.com}
+      SETUP_PASSWORD: ${SETUP_PASSWORD:?set SETUP_PASSWORD in .env}
+      SURON_DATA_DIR: /data
+    volumes:
+      - suron-data:/data
+    # No published ports on purpose: traffic enters only through the
+    # Cloudflare tunnel on the internal compose network.
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: suron-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - suron
+
+volumes:
+  suron-data:

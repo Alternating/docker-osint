@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@theme {
+  --color-abyss-950: #05080f;
+  --color-abyss-900: #090e1a;
+  --color-abyss-800: #0d1526;
+  --color-abyss-700: #131f38;
+  --color-abyss-600: #1b2b4d;
+  --color-mist-100: #e2e9f5;
+  --color-mist-400: #8fa1c0;
+  --color-mist-600: #5b6c8c;
+  --color-sigil-400: #4f83ff;
+  --color-sigil-500: #2f63e8;
+  --color-sigil-600: #1f4bc4;
+  --color-ember-400: #ff8a3d;
+  --color-ember-500: #f06a1d;
+}
+
+body {
+  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(47, 99, 232, 0.15), transparent),
+    #05080f;
+  color: #e2e9f5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.card {
+  background: rgba(13, 21, 38, 0.6);
+  border: 1px solid #1b2b4d;
+  border-radius: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.input {
+  background: #090e1a;
+  border: 1px solid #1b2b4d;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  width: 100%;
+  color: #e2e9f5;
+  outline: none;
+  transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input::placeholder {
+  color: #5b6c8c;
+}
+
+.input:focus {
+  border-color: #2f63e8;
+  box-shadow: 0 0 0 2px rgba(47, 99, 232, 0.25);
+}
+
+.btn {
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  background-color: #1f4bc4;
+  color: #ffffff;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 20px rgba(47, 99, 232, 0.25);
+}
+
+.btn:hover:not(:disabled) {
+  background-color: #2f63e8;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid #1b2b4d;
+  color: #8fa1c0;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: #e2e9f5;
+  border-color: #2f63e8;
+}

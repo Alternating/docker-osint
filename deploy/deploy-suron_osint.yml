@@ -1,0 +1,162 @@
+---
+# Deploy Suron OSINT platform (Next.js + Cloudflare tunnel) via docker compose.
+#
+# Intended to be run manually from Semaphore UI; inventory is supplied by
+# Semaphore, hence `hosts: all`.
+#
+# Overridable extra vars:
+#   suron_repo   - git repository URL   (default: https://github.com/Alternating/docker-osint.git)
+#   suron_branch - git ref to deploy    (default: main)
+#   suron_dir    - checkout directory   (default: /opt/suron)
+#
+# Prerequisites on the target host (NOT managed by this playbook):
+#   - Docker Engine with the compose v2 plugin
+#   - {{ suron_dir }}/.env containing SETUP_PASSWORD and CLOUDFLARE_TUNNEL_TOKEN
+
+- name: Deploy Suron OSINT platform
+  hosts: all
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    _suron_repo: "{{ suron_repo | default('https://github.com/Alternating/docker-osint.git') }}"
+    _suron_branch: "{{ suron_branch | default('main') }}"
+    _suron_dir: "{{ suron_dir | default('/opt/suron') }}"
+
+  tasks:
+    # ------------------------------------------------------------------
+    # 1. Prerequisites
+    # ------------------------------------------------------------------
+    - name: Ensure git is installed
+      ansible.builtin.package:
+        name: git
+        state: present
+
+    - name: Check that the docker CLI is available
+      ansible.builtin.command: docker --version
+      register: suron_docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that docker is installed
+      ansible.builtin.assert:
+        that:
+          - suron_docker_check.rc == 0
+        fail_msg: >-
+          Docker is not installed (or not on PATH) on this host.
+          This playbook does not install Docker itself - install Docker Engine
+          first, then re-run the deployment.
+        success_msg: "Docker found: {{ suron_docker_check.stdout | default('') }}"
+
+    - name: Check that the docker compose v2 plugin is available
+      ansible.builtin.command: docker compose version
+      register: suron_compose_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that the docker compose plugin is available
+      ansible.builtin.assert:
+        that:
+          - suron_compose_check.rc == 0
+        fail_msg: >-
+          The docker compose v2 plugin is not available ('docker compose version'
+          failed). Install the docker-compose-plugin package for your
+          distribution, then re-run the deployment.
+        success_msg: "Compose found: {{ suron_compose_check.stdout | default('') }}"
+
+    # ------------------------------------------------------------------
+    # 2. Fetch the code
+    # ------------------------------------------------------------------
+    - name: Clone or update the Suron repository
+      ansible.builtin.git:
+        repo: "{{ _suron_repo }}"
+        dest: "{{ _suron_dir }}"
+        version: "{{ _suron_branch }}"
+        force: true
+      register: suron_git
+
+    # ------------------------------------------------------------------
+    # 3. Runtime secrets must already exist on the host
+    # ------------------------------------------------------------------
+    - name: Check for the runtime .env file
+      ansible.builtin.stat:
+        path: "{{ _suron_dir }}/.env"
+      register: suron_env_file
+
+    - name: Assert that the runtime .env file exists
+      ansible.builtin.assert:
+        that:
+          - suron_env_file.stat.exists
+          - suron_env_file.stat.isreg | default(false)
+        fail_msg: >-
+          Missing {{ _suron_dir }}/.env on the target host. Create it manually
+          with SETUP_PASSWORD and CLOUDFLARE_TUNNEL_TOKEN before deploying.
+          This playbook intentionally never creates or overwrites that file.
+        success_msg: "Runtime .env found at {{ _suron_dir }}/.env"
+
+    # ------------------------------------------------------------------
+    # 4. Build and start the stack
+    # ------------------------------------------------------------------
+    - name: Build images (docker compose build --pull)
+      ansible.builtin.command:
+        cmd: docker compose build --pull
+        chdir: "{{ _suron_dir }}"
+      register: suron_build
+      changed_when: true
+
+    - name: Start the stack (docker compose up -d --remove-orphans)
+      ansible.builtin.command:
+        cmd: docker compose up -d --remove-orphans
+        chdir: "{{ _suron_dir }}"
+      register: suron_up
+      changed_when: >-
+        'Started' in (suron_up.stderr | default(''))
+        or 'Created' in (suron_up.stderr | default(''))
+        or 'Recreated' in (suron_up.stderr | default(''))
+
+    # ------------------------------------------------------------------
+    # 5. Health check (app listens only on the internal compose network)
+    # ------------------------------------------------------------------
+    - name: Wait for Suron to answer on /api/auth/state
+      ansible.builtin.command:
+        cmd: docker compose exec -T suron wget -qO- http://localhost:3000/api/auth/state
+        chdir: "{{ _suron_dir }}"
+      register: suron_health
+      retries: 12
+      delay: 5
+      until: suron_health.rc == 0
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that Suron is healthy
+      ansible.builtin.assert:
+        that:
+          - suron_health.rc == 0
+        fail_msg: >-
+          Suron did not respond on http://localhost:3000/api/auth/state inside
+          the container after 12 attempts (5s apart).
+          rc={{ suron_health.rc | default('n/a') }}
+          stdout={{ suron_health.stdout | default('') }}
+          stderr={{ suron_health.stderr | default('') }}
+          Check 'docker compose logs suron' in {{ _suron_dir }}.
+        success_msg: "Suron is up and answering on /api/auth/state"
+
+    # ------------------------------------------------------------------
+    # 6. Recap
+    # ------------------------------------------------------------------
+    - name: Collect compose service status
+      ansible.builtin.command:
+        cmd: docker compose ps
+        chdir: "{{ _suron_dir }}"
+      register: suron_ps
+      changed_when: false
+
+    - name: Deployment recap
+      ansible.builtin.debug:
+        msg:
+          - "Suron OSINT deployed successfully."
+          - "Repository: {{ _suron_repo }} ({{ _suron_branch }})"
+          - "Deployed ref: {{ suron_git.after | default('unknown') }}"
+          - "Checkout: {{ _suron_dir }}"
+          - "Auth state endpoint response: {{ suron_health.stdout | default('') }}"
+          - "{{ suron_ps.stdout_lines | default([]) }}"
