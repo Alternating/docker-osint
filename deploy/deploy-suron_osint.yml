@@ -10,7 +10,10 @@
 #   suron_branch - git ref to deploy    (default: main)
 #   suron_dir    - checkout directory   (default: /opt/suron)
 #
-# Secrets via the Semaphore "Service-Variables" variable group (extra vars):
+# Secrets via the Semaphore "Service-Variables" variable group. Per
+# semaphore-secrets-exposure.md in the Dunwoody repo, create secret values as
+# SECRET-type variables, never plain ones (plain extra variables land on the
+# ansible-playbook command line):
 #   suron_setup_password   - if defined, .env is rendered on FIRST deploy only
 #                            (never overwritten afterwards; without it the
 #                            .env must already exist on the host)
