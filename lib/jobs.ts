@@ -3,10 +3,31 @@ import path from "path";
 import { getDb, now, type JobRow } from "./db";
 import { runSherlock } from "./tools/sherlock";
 import { runPhoton } from "./tools/photon";
+import { runHolehe } from "./tools/holehe";
+import { runPhoneScan } from "./tools/phone";
+import { nominatimSearch } from "./tools/nominatim";
+import { emailDorks, phoneDorks, nameDorks, addressDorks } from "./tools/dorks";
 
 const DATA_DIR = process.env.SURON_DATA_DIR ?? path.join(process.cwd(), "data");
 
-export type JobTool = "sherlock" | "photon";
+export type JobTool = "sherlock" | "photon" | "email" | "phone" | "name" | "address";
+
+async function runTool(tool: JobTool, target: string, outDir: string, params?: { level?: number }) {
+  switch (tool) {
+    case "sherlock":
+      return runSherlock(target, { outDir });
+    case "photon":
+      return runPhoton(target, { level: params?.level, outDir });
+    case "email":
+      return { ...(await runHolehe(target)), links: emailDorks(target) };
+    case "phone":
+      return { scan: await runPhoneScan(target), links: phoneDorks(target) };
+    case "name":
+      return { links: nameDorks(target) };
+    case "address":
+      return { geocode: await nominatimSearch(target), links: addressDorks(target) };
+  }
+}
 
 export function startJob(
   tool: JobTool,
@@ -23,10 +44,7 @@ export function startJob(
   void (async () => {
     try {
       const outDir = path.join(DATA_DIR, "jobs", id);
-      const result =
-        tool === "sherlock"
-          ? await runSherlock(target, { outDir })
-          : await runPhoton(target, { level: params?.level, outDir });
+      const result = await runTool(tool, target, outDir, params);
 
       let resultStr = JSON.stringify(result);
       if (resultStr.length > 2_000_000) {
@@ -40,9 +58,16 @@ export function startJob(
       ).run(now(), resultStr, id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      db.prepare(
-        "UPDATE jobs SET status = 'error', finished_at = ?, error = ? WHERE id = ?"
-      ).run(now(), msg.slice(0, 1000), id);
+      // A throw here would leave the fire-and-forget IIFE with an unhandled
+      // rejection, which kills the process on modern Node — never let the
+      // bookkeeping write escape.
+      try {
+        db.prepare(
+          "UPDATE jobs SET status = 'error', finished_at = ?, error = ? WHERE id = ?"
+        ).run(now(), msg.slice(0, 1000), id);
+      } catch (writeErr) {
+        console.error("failed to record job failure", id, writeErr);
+      }
     }
   })();
 

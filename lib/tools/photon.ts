@@ -48,6 +48,9 @@ export function validateTargetUrl(raw: string): string {
   if (!url.hostname) {
     throw new Error("hostname required");
   }
+  if (url.username || url.password) {
+    throw new Error("URL contains credentials — use the email search for email addresses");
+  }
   return url.href;
 }
 

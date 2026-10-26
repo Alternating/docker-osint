@@ -12,7 +12,15 @@ tunnel. Deep-blue Mordor theme, passkey-only authentication.
 |---|---|
 | Username hunting across ~480 sites | [Sherlock](https://github.com/sherlock-project/sherlock) |
 | Target site crawling (URLs, endpoints, intel, secrets) | [Photon](https://github.com/s0md3v/Photon) |
+| Email → registered-account probing across ~120 sites | [holehe](https://github.com/megadose/holehe) |
+| Phone number intelligence (validity, region, carrier, type) | [libphonenumber](https://github.com/daviddrysdale/python-phonenumbers) |
+| Name & address dossiers (curated dorks + people-search links) | built-in generator |
+| Address geocoding | [Nominatim](https://nominatim.org/) (OpenStreetMap) |
 | Searchable index of ~1,400 curated OSINT resources | [awesome-osint](https://github.com/jivoi/awesome-osint) |
+
+The dashboard auto-detects the input type (username, email, phone, name,
+address, or domain) and routes to the right tool; a mode selector overrides
+the guess.
 
 Stack: Next.js 15 (App Router, standalone output), SQLite (better-sqlite3),
 Tailwind CSS v4, @simplewebauthn. Scans run as sandboxed subprocesses with

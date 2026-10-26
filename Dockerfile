@@ -25,19 +25,27 @@ ENV NODE_ENV=production \
     SURON_DATA_DIR=/data \
     PHOTON_PATH=/opt/suron-tools/photon/photon.py \
     PYTHON_BIN=/opt/venv/bin/python3 \
-    SHERLOCK_BIN=/opt/venv/bin/sherlock
+    SHERLOCK_BIN=/opt/venv/bin/sherlock \
+    HOLEHE_SCRIPT=/opt/suron-scripts/holehe_scan.py \
+    PHONE_SCRIPT=/opt/suron-scripts/phone_scan.py
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates python3 python3-venv wget \
     && rm -rf /var/lib/apt/lists/*
 
-# OSINT tools live outside the app tree; sherlock + photon deps go in one venv
+# OSINT tools live outside the app tree; all python deps go in one venv.
+# `requests` is holehe's undeclared dependency (its facebook module imports
+# it); omitting it breaks holehe module discovery entirely.
 RUN git clone --depth 1 https://github.com/s0md3v/Photon /opt/suron-tools/photon \
     && git clone --depth 1 https://github.com/sherlock-project/sherlock /opt/suron-tools/sherlock \
+    && git clone --depth 1 https://github.com/megadose/holehe /opt/suron-tools/holehe \
     && python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r /opt/suron-tools/photon/requirements.txt \
-    && /opt/venv/bin/pip install --no-cache-dir /opt/suron-tools/sherlock \
+    && /opt/venv/bin/pip install --no-cache-dir /opt/suron-tools/sherlock /opt/suron-tools/holehe \
+    && /opt/venv/bin/pip install --no-cache-dir requests phonenumbers \
     && rm -rf /root/.cache
+
+COPY scripts/py /opt/suron-scripts
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
