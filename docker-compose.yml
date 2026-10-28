@@ -9,6 +9,8 @@ services:
       RP_ORIGIN: ${RP_ORIGIN:-https://osint.alt-dev.com}
       SETUP_PASSWORD: ${SETUP_PASSWORD:?set SETUP_PASSWORD in .env}
       SURON_DATA_DIR: /data
+      # Optional: enables Have I Been Pwned breach lookups on email scans
+      HIBP_API_KEY: ${HIBP_API_KEY:-}
     volumes:
       - suron-data:/data
     # No published ports on purpose: traffic enters only through the

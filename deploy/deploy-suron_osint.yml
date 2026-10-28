@@ -27,6 +27,8 @@
 #                             — each service gets its own tunnel.
 #   suron_host_port         - host port NPM forwards to (default: 3001, also
 #                             registered in host_vars/192.168.1.10.yml)
+#   suron_hibp_api_key      - optional Have I Been Pwned API key (SECRET-type);
+#                             enables breach lookups on email scans
 #
 # Targeting: Suron is a single-instance app (one Cloudflare tunnel token, one
 # admin account) — deploy it to exactly ONE Docker host. Either define a
@@ -135,6 +137,7 @@
           CLOUDFLARE_TUNNEL_TOKEN={{ suron_cloudflared_token }}
           SURON_HOST_PORT={{ suron_host_port | default(3001) }}
           COMPOSE_PROFILES={{ 'bundled-tunnel' if suron_bundled_tunnel_enabled else '' }}
+          HIBP_API_KEY={{ suron_hibp_api_key | default('') }}
       no_log: true
 
     - name: Enable the host-port override for Nginx Proxy Manager

@@ -36,13 +36,35 @@ interface HoleheHit {
   error: boolean;
 }
 
+interface BreachInfo {
+  name: string;
+  title: string;
+  domain: string;
+  breachDate: string;
+  pwnCount: number;
+  dataClasses: string[];
+  isVerified: boolean;
+}
+
 interface EmailResult {
   email: string;
   total: number;
   found: number;
   results: HoleheHit[];
+  breaches: BreachInfo[] | null;
+  breachError: string | null;
   links: DorkLink[];
 }
+
+const SENSITIVE_CLASSES = new Set([
+  "Passwords",
+  "Social security numbers",
+  "Credit cards",
+  "Partial credit card data",
+  "Bank account numbers",
+  "Government issued IDs",
+  "Security questions and answers",
+]);
 
 interface PhoneResult {
   scan: {
@@ -334,6 +356,59 @@ export default function Dashboard() {
                   ))}
                 </ul>
               </details>
+            )}
+
+            <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+              Breach exposure · Have I Been Pwned
+            </h4>
+            {result.breachError ? (
+              <p className="text-ember-400 text-sm">{result.breachError}</p>
+            ) : !result.breaches ? (
+              <p className="text-mist-600 text-xs">
+                Breach lookup is off — set HIBP_API_KEY to cross-reference known
+                breaches.
+              </p>
+            ) : result.breaches.length === 0 ? (
+              <p className="text-emerald-400 text-sm">
+                No known breaches for this address.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {result.breaches.map((b) => (
+                  <div
+                    key={b.name}
+                    className="rounded-lg border border-abyss-600 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-mist-100 text-sm">
+                        {b.title}
+                        {!b.isVerified && (
+                          <span className="text-mist-600 text-xs ml-2">
+                            unverified
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-mist-600 text-xs shrink-0">
+                        {b.breachDate} · {b.pwnCount.toLocaleString()} accounts
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {b.dataClasses.map((dc) => (
+                        <span
+                          key={dc}
+                          className={`text-xs px-2 py-0.5 rounded-md ${
+                            SENSITIVE_CLASSES.has(dc)
+                              ? "bg-ember-500/15 text-ember-400"
+                              : "bg-abyss-700 text-mist-400"
+                          }`}
+                        >
+                          {dc}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             <LinksSection links={result.links} />
           </div>

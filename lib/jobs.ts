@@ -6,6 +6,7 @@ import { runPhoton } from "./tools/photon";
 import { runHolehe } from "./tools/holehe";
 import { runPhoneScan } from "./tools/phone";
 import { nominatimSearch } from "./tools/nominatim";
+import { breachedAccount, type Breach } from "./tools/hibp";
 import { emailDorks, phoneDorks, nameDorks, addressDorks } from "./tools/dorks";
 
 const DATA_DIR = process.env.SURON_DATA_DIR ?? path.join(process.cwd(), "data");
@@ -18,8 +19,18 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
       return runSherlock(target, { outDir });
     case "photon":
       return runPhoton(target, { level: params?.level, outDir });
-    case "email":
-      return { ...(await runHolehe(target)), links: emailDorks(target) };
+    case "email": {
+      const holehe = await runHolehe(target);
+      // Breach lookup failing shouldn't sink the whole email scan.
+      let breaches: Breach[] | null = null;
+      let breachError: string | null = null;
+      try {
+        breaches = await breachedAccount(target);
+      } catch (err) {
+        breachError = err instanceof Error ? err.message : String(err);
+      }
+      return { ...holehe, breaches, breachError, links: emailDorks(target) };
+    }
     case "phone":
       return { scan: await runPhoneScan(target), links: phoneDorks(target) };
     case "name":
