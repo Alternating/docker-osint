@@ -17,8 +17,11 @@ interface Conn {
   description: string;
   docsUrl: string;
   testable: boolean;
+  category: string;
+  keyFormat: string | null;
+  keyless: boolean;
   configured: boolean;
-  source: "db" | "env" | "none";
+  source: "db" | "env" | "none" | "keyless";
   masked: string | null;
 }
 
@@ -337,8 +340,103 @@ function ApiConnectionsSection() {
     );
   }
 
+  const grouped = conns.reduce<Record<string, Conn[]>>((acc, c) => {
+    (acc[c.category] ??= []).push(c);
+    return acc;
+  }, {});
+
+  const renderConn = (conn: Conn) => {
+    const status = statuses[conn.id];
+    return (
+      <div key={conn.id} className="rounded-lg border border-abyss-600 p-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
+          <h4 className="text-mist-100">{conn.label}</h4>
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs ${
+              conn.source === "db" || conn.source === "keyless"
+                ? "text-emerald-400 bg-emerald-400/10"
+                : conn.source === "env"
+                  ? "text-sigil-400 bg-sigil-400/10"
+                  : "text-mist-600 bg-abyss-700"
+            }`}
+          >
+            {conn.source === "db"
+              ? "Configured"
+              : conn.source === "env"
+                ? "From environment"
+                : conn.source === "keyless"
+                  ? "Keyless · ready"
+                  : "Not configured"}
+          </span>
+        </div>
+
+        <p className="text-mist-400 text-sm mb-1">{conn.description}</p>
+        <a
+          href={conn.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sigil-400 text-xs mb-3 inline-block"
+        >
+          {conn.keyless ? "Learn more ↗" : "Get a key ↗"}
+        </a>
+
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          {!conn.keyless && (
+            <>
+              <input
+                className="input"
+                type="password"
+                value={drafts[conn.id] ?? ""}
+                onChange={(e) =>
+                  setDrafts((prev) => ({ ...prev, [conn.id]: e.target.value }))
+                }
+                placeholder={
+                  conn.keyFormat
+                    ? `API key — format: ${conn.keyFormat}`
+                    : "Paste API key (leave blank to clear override)"
+                }
+              />
+              <button
+                className="btn whitespace-nowrap"
+                disabled={busy === conn.id}
+                onClick={() => saveKey(conn.id)}
+              >
+                {busy === conn.id ? "Working…" : "Save"}
+              </button>
+            </>
+          )}
+          {conn.testable && (
+            <button
+              className="btn-ghost whitespace-nowrap"
+              disabled={busy === conn.id}
+              onClick={() => testKey(conn.id)}
+            >
+              {busy === conn.id ? "Testing…" : "Test"}
+            </button>
+          )}
+        </div>
+
+        {conn.masked && (
+          <p className="text-mist-600 text-xs font-mono mt-2">
+            Current key: {conn.masked}
+          </p>
+        )}
+
+        {status && (
+          <p
+            className={`text-sm mt-2 ${
+              status.ok ? "text-emerald-400" : "text-ember-400"
+            }`}
+          >
+            {status.text}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="card p-6 space-y-4">
+    <div className="card p-6 space-y-6">
       <div>
         <h3 className="text-lg text-mist-100">API Connections</h3>
         <p className="text-mist-400 text-sm">
@@ -351,85 +449,12 @@ function ApiConnectionsSection() {
       {conns.length === 0 ? (
         <p className="text-mist-600 text-sm">No API connections available.</p>
       ) : (
-        conns.map((conn) => {
-          const status = statuses[conn.id];
-          return (
-            <div key={conn.id} className="rounded-lg border border-abyss-600 p-4">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-2">
-                <h4 className="text-mist-100">{conn.label}</h4>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${
-                    conn.configured && conn.source === "db"
-                      ? "text-emerald-400 bg-emerald-400/10"
-                      : conn.configured && conn.source === "env"
-                        ? "text-sigil-400 bg-sigil-400/10"
-                        : "text-mist-600 bg-abyss-700"
-                  }`}
-                >
-                  {conn.configured && conn.source === "db"
-                    ? "Configured"
-                    : conn.configured && conn.source === "env"
-                      ? "From environment"
-                      : "Not configured"}
-                </span>
-              </div>
-
-              <p className="text-mist-400 text-sm mb-1">{conn.description}</p>
-              <a
-                href={conn.docsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sigil-400 text-xs mb-3 inline-block"
-              >
-                Get a key ↗
-              </a>
-
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <input
-                  className="input"
-                  type="password"
-                  value={drafts[conn.id] ?? ""}
-                  onChange={(e) =>
-                    setDrafts((prev) => ({ ...prev, [conn.id]: e.target.value }))
-                  }
-                  placeholder="Paste API key (leave blank to clear override)"
-                />
-                <button
-                  className="btn whitespace-nowrap"
-                  disabled={busy === conn.id}
-                  onClick={() => saveKey(conn.id)}
-                >
-                  {busy === conn.id ? "Working…" : "Save"}
-                </button>
-                {conn.testable && (
-                  <button
-                    className="btn-ghost whitespace-nowrap"
-                    disabled={busy === conn.id}
-                    onClick={() => testKey(conn.id)}
-                  >
-                    Test
-                  </button>
-                )}
-              </div>
-
-              {conn.masked && (
-                <p className="text-mist-600 text-xs font-mono mt-2">
-                  Current key: {conn.masked}
-                </p>
-              )}
-
-              {status && (
-                <p
-                  className={`text-sm mt-2 ${
-                    status.ok ? "text-emerald-400" : "text-ember-400"
-                  }`}
-                >
-                  {status.text}
-                </p>
-              )}
-            </div>
-          );
-        })
+        Object.entries(grouped).map(([cat, group]) => (
+          <div key={cat} className="space-y-3">
+            <h4 className="text-mist-400 text-xs uppercase tracking-wider">{cat}</h4>
+            {group.map((conn) => renderConn(conn))}
+          </div>
+        ))
       )}
     </div>
   );

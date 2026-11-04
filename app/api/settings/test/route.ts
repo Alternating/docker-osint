@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getConnection } from "@/lib/settings";
-import { hibpKeyStatus } from "@/lib/tools/hibp";
+import { testConnection } from "@/lib/connections";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,17 +20,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (conn.id === "hibp") {
-      try {
-        const message = await hibpKeyStatus();
-        return NextResponse.json({ ok: true, message });
-      } catch (e) {
-        // 200 so the client renders the failure reason inline.
-        return NextResponse.json({ ok: false, error: (e as Error).message });
-      }
+    try {
+      const message = await testConnection(conn.id);
+      return NextResponse.json({ ok: true, message });
+    } catch (e) {
+      // 200 so the client renders the failure reason inline.
+      return NextResponse.json({ ok: false, error: (e as Error).message });
     }
-
-    return NextResponse.json({ error: "no tester for this connection" }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }

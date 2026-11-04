@@ -21,6 +21,9 @@ export async function GET() {
         description: conn.description,
         docsUrl: conn.docsUrl,
         testable: conn.testable,
+        category: conn.category,
+        keyFormat: conn.keyFormat ?? null,
+        keyless: Boolean(conn.keyless),
         configured: s.configured,
         source: s.source,
         masked: s.masked,
@@ -47,6 +50,12 @@ export async function PATCH(req: NextRequest) {
     const conn = getConnection(body.id);
     if (!conn) {
       return NextResponse.json({ error: "unknown connection" }, { status: 400 });
+    }
+    if (conn.keyless) {
+      return NextResponse.json(
+        { error: "this connection does not take an API key" },
+        { status: 400 }
+      );
     }
 
     const raw = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
