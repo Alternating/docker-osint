@@ -1,3 +1,5 @@
+import { getApiKey } from "@/lib/settings";
+
 // HIBP's cheapest tier allows ~10 requests/min; space calls out like the
 // Nominatim client does.
 let nextSlot = 0;
@@ -21,11 +23,38 @@ export interface Breach {
 }
 
 export function hibpConfigured(): boolean {
-  return Boolean(process.env.HIBP_API_KEY);
+  return Boolean(getApiKey("hibp"));
+}
+
+// Validates the configured key against HIBP's subscription endpoint, which
+// doesn't consume the breach-lookup budget. Returns a short human-readable
+// status line, or throws with the reason the key is unusable.
+export async function hibpKeyStatus(): Promise<string> {
+  const key = getApiKey("hibp");
+  if (!key) throw new Error("No HIBP API key is configured");
+
+  const res = await fetch("https://haveibeenpwned.com/api/v3/subscription/status", {
+    headers: {
+      "hibp-api-key": key,
+      "user-agent": "Suron-OSINT/0.1 (self-hosted)",
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (res.status === 401) throw new Error("HIBP rejected the API key");
+  if (res.status === 429) throw new Error("HIBP rate limit hit — try again shortly");
+  if (!res.ok) throw new Error(`HIBP responded ${res.status}`);
+
+  const data = (await res.json()) as {
+    SubscriptionName?: unknown;
+    Rpm?: unknown;
+  };
+  const name = String(data.SubscriptionName ?? "active");
+  return typeof data.Rpm === "number" ? `${name} (${data.Rpm} req/min)` : name;
 }
 
 export async function breachedAccount(email: string): Promise<Breach[] | null> {
-  const key = process.env.HIBP_API_KEY;
+  const key = getApiKey("hibp");
   if (!key) return null;
 
   await rateSlot();

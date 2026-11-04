@@ -7,6 +7,7 @@ import { runHolehe } from "./tools/holehe";
 import { runPhoneScan } from "./tools/phone";
 import { nominatimSearch } from "./tools/nominatim";
 import { breachedAccount, type Breach } from "./tools/hibp";
+import { lookupEmail, type BreachHit } from "./breaches";
 import { emailDorks, phoneDorks, nameDorks, addressDorks } from "./tools/dorks";
 
 const DATA_DIR = process.env.SURON_DATA_DIR ?? path.join(process.cwd(), "data");
@@ -29,7 +30,21 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
       } catch (err) {
         breachError = err instanceof Error ? err.message : String(err);
       }
-      return { ...holehe, breaches, breachError, links: emailDorks(target) };
+      // Locally imported breach lists are offline, so a miss here is still
+      // just an empty list rather than a reason to fail the scan.
+      let localBreaches: BreachHit[] = [];
+      try {
+        localBreaches = lookupEmail(target);
+      } catch {
+        localBreaches = [];
+      }
+      return {
+        ...holehe,
+        breaches,
+        breachError,
+        localBreaches,
+        links: emailDorks(target),
+      };
     }
     case "phone":
       return { scan: await runPhoneScan(target), links: phoneDorks(target) };

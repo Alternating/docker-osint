@@ -4,7 +4,7 @@ import {
   type AuthenticationResponseJSON,
 } from "@simplewebauthn/server";
 import { takeChallenge, createSession, rpConfig } from "@/lib/auth";
-import { getDb, type CredentialRow } from "@/lib/db";
+import { getDb, now, type CredentialRow } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,10 +43,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "authentication failed" }, { status: 401 });
     }
 
-    db.prepare("UPDATE credentials SET counter = ? WHERE id = ?").run(
-      verification.authenticationInfo.newCounter,
-      row.id
-    );
+    db.prepare(
+      "UPDATE credentials SET counter = ?, last_used_at = ? WHERE id = ?"
+    ).run(verification.authenticationInfo.newCounter, now(), row.id);
     await createSession(row.user_id);
     const res = NextResponse.json({ ok: true });
     res.cookies.delete("suron_challenge");

@@ -24,7 +24,9 @@ export function getDb(): Database.Database {
         public_key BLOB NOT NULL,
         counter INTEGER NOT NULL DEFAULT 0,
         transports TEXT,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        name TEXT,
+        last_used_at INTEGER
       );
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
@@ -49,7 +51,37 @@ export function getDb(): Database.Database {
         result TEXT,
         error TEXT
       );
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS breach_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        format TEXT NOT NULL,
+        entry_count INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS breach_entries (
+        source_id TEXT NOT NULL REFERENCES breach_sources(id),
+        email TEXT NOT NULL,
+        has_extra INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_breach_entries_email ON breach_entries(email);
+      CREATE INDEX IF NOT EXISTS idx_breach_entries_source ON breach_entries(source_id);
     `);
+
+    // Additive migrations: credentials predates the name/last_used_at columns,
+    // and CREATE TABLE IF NOT EXISTS won't add them to an existing table.
+    const credCols = db
+      .prepare("PRAGMA table_info(credentials)")
+      .all() as { name: string }[];
+    const hasCredCol = (col: string) => credCols.some((c) => c.name === col);
+    if (!hasCredCol("name")) db.exec("ALTER TABLE credentials ADD COLUMN name TEXT");
+    if (!hasCredCol("last_used_at"))
+      db.exec("ALTER TABLE credentials ADD COLUMN last_used_at INTEGER");
 
     // Jobs run as in-process promises; anything still "running" after a
     // restart can never finish and must be marked failed.
@@ -80,6 +112,8 @@ export interface CredentialRow {
   counter: number;
   transports: string | null;
   created_at: number;
+  name: string | null;
+  last_used_at: number | null;
 }
 
 export interface SessionRow {
@@ -99,4 +133,19 @@ export interface JobRow {
   finished_at: number | null;
   result: string | null;
   error: string | null;
+}
+
+export interface SettingRow {
+  key: string;
+  value: string;
+  updated_at: number;
+}
+
+export interface BreachSourceRow {
+  id: string;
+  name: string;
+  format: string;
+  entry_count: number;
+  note: string | null;
+  created_at: number;
 }

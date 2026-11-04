@@ -43,14 +43,15 @@ export async function POST(req: NextRequest) {
       const userId = Number(info.lastInsertRowid);
 
       db.prepare(
-        "INSERT INTO credentials (id, user_id, public_key, counter, transports, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO credentials (id, user_id, public_key, counter, transports, created_at, name) VALUES (?, ?, ?, ?, ?, ?, ?)"
       ).run(
         cred.id,
         userId,
         Buffer.from(cred.publicKey),
         cred.counter,
         cred.transports ? JSON.stringify(cred.transports) : null,
-        now()
+        now(),
+        "Primary passkey"
       );
 
       return userId;

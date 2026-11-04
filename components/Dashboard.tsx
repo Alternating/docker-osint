@@ -46,6 +46,13 @@ interface BreachInfo {
   isVerified: boolean;
 }
 
+interface LocalBreachHit {
+  sourceId: string;
+  name: string;
+  format: string;
+  hasExtra: boolean;
+}
+
 interface EmailResult {
   email: string;
   total: number;
@@ -53,6 +60,7 @@ interface EmailResult {
   results: HoleheHit[];
   breaches: BreachInfo[] | null;
   breachError: string | null;
+  localBreaches?: LocalBreachHit[];
   links: DorkLink[];
 }
 
@@ -410,6 +418,32 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+
+            {result.localBreaches && result.localBreaches.length > 0 && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Local breach lists
+                </h4>
+                <div className="space-y-2">
+                  {result.localBreaches.map((hit) => (
+                    <div
+                      key={hit.sourceId}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-ember-500/40 bg-ember-500/5 p-3"
+                    >
+                      <span className="text-mist-100 text-sm">{hit.name}</span>
+                      <span className="text-ember-400 text-xs shrink-0">
+                        {hit.format === "combo" && hit.hasExtra
+                          ? "password exposed"
+                          : hit.hasExtra
+                            ? "record present"
+                            : "email present"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             <LinksSection links={result.links} />
           </div>
         );
