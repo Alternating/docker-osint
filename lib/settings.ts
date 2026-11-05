@@ -91,7 +91,9 @@ export const API_CONNECTIONS: ApiConnection[] = [
     description:
       "Free, keyless password-exposure checks via HIBP's range API. Test verifies connectivity; an offline local corpus can be imported later.",
     docsUrl: "https://haveibeenpwned.com/API/v3#PwnedPasswords",
-    settingKey: "pwnedpasswords.mode",
+    // Keyless: this key is never read. The online/offline toggle lives under a
+    // separate key ("pwnedpasswords.mode") owned by lib/pwnedpasswords.ts.
+    settingKey: "pwnedpasswords.unused",
     testable: true,
     category: "Passwords",
     keyless: true,

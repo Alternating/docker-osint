@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
+import PwnedPasswordsPanel from "./PwnedPasswords";
 
 interface Passkey {
   id: string;
@@ -664,7 +665,12 @@ export default function Settings() {
       </div>
 
       {tab === "passkeys" && <PasskeysSection />}
-      {tab === "api" && <ApiConnectionsSection />}
+      {tab === "api" && (
+        <div className="space-y-8">
+          <ApiConnectionsSection />
+          <PwnedPasswordsPanel />
+        </div>
+      )}
       {tab === "breaches" && <BreachImportsSection />}
     </div>
   );
