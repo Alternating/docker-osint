@@ -48,6 +48,12 @@ export default function Shell({ username, children }: ShellProps) {
                 >
                   Settings
                 </Link>
+                <Link
+                  href="/support"
+                  className="text-mist-400 hover:text-mist-100 text-sm transition-colors"
+                >
+                  Support
+                </Link>
               </div>
             </div>
             <div className="flex items-center gap-4">

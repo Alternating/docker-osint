@@ -17,6 +17,10 @@ tunnel. Deep-blue Mordor theme, passkey-only authentication.
 | Name & address dossiers (curated dorks + people-search links) | built-in generator |
 | Address geocoding | [Nominatim](https://nominatim.org/) (OpenStreetMap) |
 | Breach exposure per email (optional) | [Have I Been Pwned](https://haveibeenpwned.com/API/v3) |
+| Extra breach / reputation lookups (optional) | LeakCheck, DeHashed, EmailRep, Intelligence X |
+| Phone enrichment — line type, carrier, caller name (optional) | [Twilio Lookup](https://www.twilio.com/docs/lookup/v2-api) |
+| Offline breach-list cross-referencing | local import (email / combo / CSV) |
+| Password-exposure checks, online or air-gapped | [HIBP Pwned Passwords](https://haveibeenpwned.com/API/v3#PwnedPasswords) (k-anonymity) |
 | Searchable index of ~1,400 curated OSINT resources | [awesome-osint](https://github.com/jivoi/awesome-osint) |
 
 The dashboard auto-detects the input type (username, email, phone, name,
@@ -40,6 +44,32 @@ requests).
 Stack: Next.js 15 (App Router, standalone output), SQLite (better-sqlite3),
 Tailwind CSS v4, @simplewebauthn. Scans run as sandboxed subprocesses with
 hard kill-timeouts; results persist as jobs you can revisit.
+
+## Settings & in-app help
+
+Everything optional is configured from the passkey-gated **Settings** page and
+documented in the in-app **Support** tab, which breaks the whole app down
+chapter by chapter with procedures and search examples — so a new user can
+learn the tool without leaving it.
+
+- **Passkeys** — register, name, and remove sign-in passkeys, each showing its
+  created / last-used dates. The last remaining passkey can't be removed
+  (lockout guard).
+- **API connections** — paste a key for any optional source and **Test** it
+  with one live authenticated request. A key saved here overrides the server
+  environment; clear the field to fall back. Supported: Have I Been Pwned,
+  LeakCheck, EmailRep, DeHashed, Intelligence X, and Twilio Lookup (Twilio
+  takes an `AccountSID:AuthToken` pair; the rest take a single token). Metered
+  providers are contacted only when their key is set.
+- **Breach imports** — import email / combo (`email:password`) / CSV lists for
+  fully offline cross-referencing on email scans. Only a presence flag is
+  stored — never the plaintext passwords.
+- **Password exposure** — check passwords against HIBP Pwned Passwords. The
+  password is SHA-1 hashed **in the browser** and only the first five hash
+  characters are sent (k-anonymity). *Online* uses the free keyless range API;
+  *Offline* serves from a locally imported corpus (download it once with the
+  official PwnedPasswordsDownloader, place it in the data directory, and import)
+  for air-gapped use.
 
 ## Authentication model
 
