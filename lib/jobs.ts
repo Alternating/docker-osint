@@ -6,13 +6,29 @@ import { runPhoton } from "./tools/photon";
 import { runHolehe } from "./tools/holehe";
 import { runPhoneScan } from "./tools/phone";
 import { nominatimSearch } from "./tools/nominatim";
-import { breachedAccount, type Breach } from "./tools/hibp";
+import { breachedAccount } from "./tools/hibp";
+import { emailRepLookup } from "./tools/emailrep";
+import { leakCheckLookup } from "./tools/leakcheck";
+import { deHashedLookup } from "./tools/dehashed";
+import { twilioLookup } from "./tools/twilio";
 import { lookupEmail, type BreachHit } from "./breaches";
 import { emailDorks, phoneDorks, nameDorks, addressDorks } from "./tools/dorks";
 
 const DATA_DIR = process.env.SURON_DATA_DIR ?? path.join(process.cwd(), "data");
 
 export type JobTool = "sherlock" | "photon" | "email" | "phone" | "name" | "address";
+
+// Wraps a provider call so one failing API never sinks the whole scan; the
+// error travels alongside the (null) data for the UI to surface.
+async function settle<T>(
+  p: Promise<T>
+): Promise<{ data: T | null; error: string | null }> {
+  try {
+    return { data: await p, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 async function runTool(tool: JobTool, target: string, outDir: string, params?: { level?: number }) {
   switch (tool) {
@@ -21,15 +37,16 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
     case "photon":
       return runPhoton(target, { level: params?.level, outDir });
     case "email": {
-      const holehe = await runHolehe(target);
-      // Breach lookup failing shouldn't sink the whole email scan.
-      let breaches: Breach[] | null = null;
-      let breachError: string | null = null;
-      try {
-        breaches = await breachedAccount(target);
-      } catch (err) {
-        breachError = err instanceof Error ? err.message : String(err);
-      }
+      // holehe (the core probe) runs concurrently with the external enrichment.
+      // holehe is NOT settled — if it throws the whole scan fails, as before —
+      // while each enrichment is key-gated (null when unset) and fail-soft.
+      const [holehe, hibp, emailRep, leakCheck, deHashed] = await Promise.all([
+        runHolehe(target),
+        settle(breachedAccount(target)),
+        settle(emailRepLookup(target)),
+        settle(leakCheckLookup(target)),
+        settle(deHashedLookup(target)),
+      ]);
       // Locally imported breach lists are offline, so a miss here is still
       // just an empty list rather than a reason to fail the scan.
       let localBreaches: BreachHit[] = [];
@@ -40,14 +57,29 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
       }
       return {
         ...holehe,
-        breaches,
-        breachError,
+        breaches: hibp.data,
+        breachError: hibp.error,
+        emailRep: emailRep.data,
+        emailRepError: emailRep.error,
+        leakCheck: leakCheck.data,
+        leakCheckError: leakCheck.error,
+        deHashed: deHashed.data,
+        deHashedError: deHashed.error,
         localBreaches,
         links: emailDorks(target),
       };
     }
-    case "phone":
-      return { scan: await runPhoneScan(target), links: phoneDorks(target) };
+    case "phone": {
+      const scan = await runPhoneScan(target);
+      // Twilio needs E.164; fall back to the raw target if parsing failed.
+      const twilio = await settle(twilioLookup(scan.e164 || target));
+      return {
+        scan,
+        twilio: twilio.data,
+        twilioError: twilio.error,
+        links: phoneDorks(target),
+      };
+    }
     case "name":
       return { links: nameDorks(target) };
     case "address":

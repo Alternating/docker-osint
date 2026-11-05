@@ -53,6 +53,39 @@ interface LocalBreachHit {
   hasExtra: boolean;
 }
 
+interface EmailRepResult {
+  reputation: string;
+  suspicious: boolean;
+  references: number;
+  flags: string[];
+  profiles: string[];
+}
+
+interface LeakCheckHit {
+  source: string;
+  date: string | null;
+  fields: string[];
+  hasPassword: boolean;
+}
+
+interface LeakCheckResult {
+  found: number;
+  quota: number | null;
+  hits: LeakCheckHit[];
+}
+
+interface DeHashedHit {
+  source: string;
+  fields: string[];
+  hasPassword: boolean;
+}
+
+interface DeHashedResult {
+  total: number;
+  balance: number | null;
+  hits: DeHashedHit[];
+}
+
 interface EmailResult {
   email: string;
   total: number;
@@ -61,6 +94,12 @@ interface EmailResult {
   breaches: BreachInfo[] | null;
   breachError: string | null;
   localBreaches?: LocalBreachHit[];
+  emailRep?: EmailRepResult | null;
+  emailRepError?: string | null;
+  leakCheck?: LeakCheckResult | null;
+  leakCheckError?: string | null;
+  deHashed?: DeHashedResult | null;
+  deHashedError?: string | null;
   links: DorkLink[];
 }
 
@@ -73,6 +112,14 @@ const SENSITIVE_CLASSES = new Set([
   "Government issued IDs",
   "Security questions and answers",
 ]);
+
+interface TwilioResult {
+  valid: boolean;
+  nationalFormat: string | null;
+  lineType: string | null;
+  carrier: string | null;
+  callerName: string | null;
+}
 
 interface PhoneResult {
   scan: {
@@ -87,6 +134,8 @@ interface PhoneResult {
     timezones: string[];
     number_type: string;
   };
+  twilio?: TwilioResult | null;
+  twilioError?: string | null;
   links: DorkLink[];
 }
 
@@ -167,6 +216,26 @@ function LinksSection({ links }: { links: DorkLink[] }) {
             ))}
           </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function FieldChips({ fields }: { fields: string[] }) {
+  if (!fields.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {fields.map((f) => (
+        <span
+          key={f}
+          className={`text-xs px-2 py-0.5 rounded-md ${
+            f === "password" || f === "hashed_password"
+              ? "bg-ember-500/15 text-ember-400"
+              : "bg-abyss-700 text-mist-400"
+          }`}
+        >
+          {f}
+        </span>
       ))}
     </div>
   );
@@ -419,6 +488,83 @@ export default function Dashboard() {
               </div>
             )}
 
+            {(result.leakCheckError || result.leakCheck) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Breach records · LeakCheck
+                </h4>
+                {result.leakCheckError ? (
+                  <p className="text-ember-400 text-sm">{result.leakCheckError}</p>
+                ) : result.leakCheck && result.leakCheck.hits.length === 0 ? (
+                  <p className="text-emerald-400 text-sm">
+                    No LeakCheck records for this address.
+                  </p>
+                ) : result.leakCheck ? (
+                  <div className="space-y-3">
+                    <p className="text-mist-600 text-xs">
+                      {result.leakCheck.found} records across{" "}
+                      {result.leakCheck.hits.length}{" "}
+                      {result.leakCheck.hits.length === 1 ? "breach" : "breaches"}
+                      {result.leakCheck.quota != null
+                        ? ` · ${result.leakCheck.quota} credits left`
+                        : ""}
+                    </p>
+                    {result.leakCheck.hits.map((h) => (
+                      <div key={h.source} className="rounded-lg border border-abyss-600 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-mist-100 text-sm">{h.source}</span>
+                          <span className="text-mist-600 text-xs shrink-0">
+                            {h.date || ""}
+                            {h.hasPassword ? " · password exposed" : ""}
+                          </span>
+                        </div>
+                        <FieldChips fields={h.fields} />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+
+            {(result.deHashedError || result.deHashed) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Breach records · DeHashed
+                </h4>
+                {result.deHashedError ? (
+                  <p className="text-ember-400 text-sm">{result.deHashedError}</p>
+                ) : result.deHashed && result.deHashed.hits.length === 0 ? (
+                  <p className="text-emerald-400 text-sm">
+                    No DeHashed records for this address.
+                  </p>
+                ) : result.deHashed ? (
+                  <div className="space-y-3">
+                    <p className="text-mist-600 text-xs">
+                      {result.deHashed.total} records across{" "}
+                      {result.deHashed.hits.length}{" "}
+                      {result.deHashed.hits.length === 1 ? "source" : "sources"}
+                      {result.deHashed.balance != null
+                        ? ` · ${result.deHashed.balance} credits left`
+                        : ""}
+                    </p>
+                    {result.deHashed.hits.map((h) => (
+                      <div key={h.source} className="rounded-lg border border-abyss-600 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-mist-100 text-sm">{h.source}</span>
+                          {h.hasPassword && (
+                            <span className="text-ember-400 text-xs shrink-0">
+                              password exposed
+                            </span>
+                          )}
+                        </div>
+                        <FieldChips fields={h.fields} />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+
             {result.localBreaches && result.localBreaches.length > 0 && (
               <>
                 <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
@@ -444,12 +590,67 @@ export default function Dashboard() {
               </>
             )}
 
+            {(result.emailRepError || result.emailRep) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Email reputation · EmailRep
+                </h4>
+                {result.emailRepError ? (
+                  <p className="text-ember-400 text-sm">{result.emailRepError}</p>
+                ) : result.emailRep ? (
+                  <div className="rounded-lg border border-abyss-600 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <span className="text-mist-100">
+                        Reputation:{" "}
+                        <span
+                          className={
+                            result.emailRep.reputation === "high"
+                              ? "text-emerald-400"
+                              : result.emailRep.reputation === "medium"
+                                ? "text-sigil-400"
+                                : result.emailRep.reputation === "low"
+                                  ? "text-ember-400"
+                                  : "text-mist-400"
+                          }
+                        >
+                          {result.emailRep.reputation}
+                        </span>
+                      </span>
+                      {result.emailRep.suspicious && (
+                        <span className="text-ember-400 text-xs">suspicious</span>
+                      )}
+                      <span className="text-mist-600 text-xs">
+                        {result.emailRep.references} references
+                      </span>
+                    </div>
+                    {result.emailRep.flags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {result.emailRep.flags.map((f) => (
+                          <span
+                            key={f}
+                            className="text-xs px-2 py-0.5 rounded-md bg-ember-500/15 text-ember-400"
+                          >
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {result.emailRep.profiles.length > 0 && (
+                      <p className="text-mist-400 text-xs">
+                        Seen on: {result.emailRep.profiles.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )}
+
             <LinksSection links={result.links} />
           </div>
         );
       }
       case "phone": {
-        const { scan, links } = job.result as PhoneResult;
+        const { scan, links, twilio, twilioError } = job.result as PhoneResult;
         const rows: [string, string][] = [
           ["E.164", scan.e164],
           ["International", scan.international],
@@ -476,6 +677,36 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {(twilioError || twilio) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Carrier &amp; line · Twilio
+                </h4>
+                {twilioError ? (
+                  <p className="text-ember-400 text-sm">{twilioError}</p>
+                ) : twilio && !twilio.valid ? (
+                  <p className="text-mist-600 text-sm">
+                    Twilio could not resolve this number.
+                  </p>
+                ) : twilio ? (
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    {(
+                      [
+                        ["Line type", twilio.lineType],
+                        ["Carrier", twilio.carrier],
+                        ["Caller name", twilio.callerName],
+                      ] as [string, string | null][]
+                    ).map(([label, value]) => (
+                      <div key={label} className="flex flex-col">
+                        <span className="text-mist-600">{label}</span>
+                        <span className="text-mist-100">{value || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+
             <LinksSection links={links} />
           </div>
         );
