@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import fs from "fs";
 import path from "path";
 import { getDb, now, type JobRow } from "./db";
 import { runSherlock } from "./tools/sherlock";
@@ -144,4 +145,39 @@ export function listJobs(limit = 20): JobRow[] {
   return getDb()
     .prepare("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?")
     .all(limit) as JobRow[];
+}
+
+// Best-effort removal of a job's on-disk output (Photon exports, etc.).
+function removeJobDir(id: string): void {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return;
+  try {
+    fs.rmSync(path.join(DATA_DIR, "jobs", id), { recursive: true, force: true });
+  } catch {
+    // leftover files are harmless; never let cleanup fail the delete
+  }
+}
+
+// Clears finished history. Running jobs are left alone — their in-process
+// promise is still writing to the row and the output dir.
+export function clearJobs(): number {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT id FROM jobs WHERE status != 'running'")
+    .all() as { id: string }[];
+  const info = db.prepare("DELETE FROM jobs WHERE status != 'running'").run();
+  for (const { id } of rows) removeJobDir(id);
+  return info.changes;
+}
+
+export function deleteJob(id: string): "ok" | "running" | "notfound" {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return "notfound";
+  const db = getDb();
+  const row = db.prepare("SELECT status FROM jobs WHERE id = ?").get(id) as
+    | { status: string }
+    | undefined;
+  if (!row) return "notfound";
+  if (row.status === "running") return "running";
+  db.prepare("DELETE FROM jobs WHERE id = ?").run(id);
+  removeJobDir(id);
+  return "ok";
 }

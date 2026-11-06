@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { listJobs } from "@/lib/jobs";
+import { listJobs, clearJobs } from "@/lib/jobs";
+
+export async function DELETE() {
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const cleared = clearJobs();
+  return NextResponse.json({ cleared });
+}
 
 export async function GET() {
   const user = await getSessionUser();

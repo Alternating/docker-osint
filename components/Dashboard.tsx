@@ -309,6 +309,47 @@ export default function Dashboard() {
     }
   };
 
+  const closeDetail = () => {
+    setOpenId(null);
+    setOpenJob(null);
+    openIdRef.current = null;
+  };
+
+  const clearHistory = async () => {
+    if (!window.confirm("Clear all finished search history? Running scans are kept.")) {
+      return;
+    }
+    // Only the currently open detail that will actually be deleted should close;
+    // a running scan is kept, so leave its live detail open.
+    const openStatus = jobs.find((j) => j.id === openIdRef.current)?.status;
+    try {
+      const res = await fetch("/api/jobs", { method: "DELETE" });
+      if (!res.ok) {
+        setError("Couldn't clear history.");
+        return;
+      }
+      if (openStatus && openStatus !== "running") closeDetail();
+      await loadJobs();
+    } catch {
+      setError("Couldn't clear history.");
+    }
+  };
+
+  const removeJob = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError("Couldn't delete that search.");
+        return;
+      }
+      if (openIdRef.current === id) closeDetail();
+      await loadJobs();
+    } catch {
+      setError("Couldn't delete that search.");
+    }
+  };
+
   const startScan = async () => {
     if (!query.trim() || busy) return;
     setBusy(true);
@@ -803,9 +844,19 @@ export default function Dashboard() {
       </div>
 
       <div>
-        <h3 className="text-sm text-mist-400 uppercase tracking-wider mb-3">
-          Scrying history
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm text-mist-400 uppercase tracking-wider">
+            Scrying history
+          </h3>
+          {jobs.some((j) => j.status !== "running") && (
+            <button
+              onClick={clearHistory}
+              className="btn-ghost text-xs px-3 py-1.5"
+            >
+              Clear history
+            </button>
+          )}
+        </div>
         {jobs.length === 0 ? (
           <div className="card p-8 text-center text-mist-600">
             Nothing scried yet. Begin a search above.
@@ -836,9 +887,21 @@ export default function Dashboard() {
                         {job.target}
                       </span>
                     </div>
-                    <span className="text-mist-600 text-xs shrink-0">
-                      {new Date(job.created_at * 1000).toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-mist-600 text-xs">
+                        {new Date(job.created_at * 1000).toLocaleString()}
+                      </span>
+                      {job.status !== "running" && (
+                        <button
+                          onClick={(e) => removeJob(job.id, e)}
+                          className="text-mist-600 hover:text-ember-400 transition-colors text-sm leading-none px-1"
+                          title="Delete this search"
+                          aria-label="Delete this search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {job.error && (
                     <div className="mt-2 text-ember-400 text-xs">{job.error}</div>

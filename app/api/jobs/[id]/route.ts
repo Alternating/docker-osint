@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getJob } from "@/lib/jobs";
+import { getJob, deleteJob } from "@/lib/jobs";
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const outcome = deleteJob(id);
+  if (outcome === "notfound") {
+    return NextResponse.json({ error: "job not found" }, { status: 404 });
+  }
+  if (outcome === "running") {
+    return NextResponse.json(
+      { error: "can't delete a running scan" },
+      { status: 409 }
+    );
+  }
+  return NextResponse.json({ ok: true });
+}
 
 export async function GET(
   _req: NextRequest,

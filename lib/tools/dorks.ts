@@ -59,6 +59,11 @@ export function nameDorks(name: string): DorkLink[] {
       url: `https://www.whitepages.com/name/${path}`,
     },
     { group: "People search sites", label: "Spokeo", url: `https://www.spokeo.com/${path}` },
+    {
+      group: "People search sites",
+      label: "USPhoneBook",
+      url: g(`site:usphonebook.com ${q}`),
+    },
   ];
 }
 
@@ -95,6 +100,7 @@ export function addressDorks(address: string): DorkLink[] {
       label: "TruePeopleSearch address",
       url: `https://www.truepeoplesearch.com/resultaddress?streetaddress=${enc}`,
     },
+    { group: "Records", label: "USPhoneBook mentions", url: g(`site:usphonebook.com ${q}`) },
   ];
 }
 
@@ -104,6 +110,9 @@ export function phoneDorks(phone: string): DorkLink[] {
 
   const q = `"${phone.trim()}"`;
   const qClean = `"${clean}"`;
+  // USPhoneBook keys off the bare 10-digit US number (drop a leading 1/+1).
+  const digits = clean.replace(/\D/g, "");
+  const us10 = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
 
   return [
     { group: "Search engines", label: "Google (as typed)", url: g(q) },
@@ -115,6 +124,17 @@ export function phoneDorks(phone: string): DorkLink[] {
       label: "TrueCaller",
       url: `https://www.truecaller.com/search/us/${encodeURIComponent(clean)}`,
     },
+    // Only link USPhoneBook (US-only, keyed on the bare 10-digit number) when
+    // we actually have one; otherwise it would be a dead link.
+    ...(us10.length === 10
+      ? [
+          {
+            group: "Reverse lookup",
+            label: "USPhoneBook",
+            url: `https://www.usphonebook.com/${us10}`,
+          },
+        ]
+      : []),
     {
       group: "Reverse lookup",
       label: "WhoCalledMe / 800notes",

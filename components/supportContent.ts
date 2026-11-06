@@ -63,6 +63,10 @@ export const SUPPORT_CHAPTERS: SupportChapter[] = [
         text: "Scans run in the background as jobs, so you can start several and come back to them. History persists, so you can revisit a past result later. A scan is force-stopped after five minutes, and very large result lists are truncated.",
       },
       {
+        type: "p",
+        text: "To tidy up, use \"Clear history\" above the list to remove all finished searches at once, or the ✕ on any row to delete just that one. Running scans are always kept.",
+      },
+      {
         type: "note",
         text: "Only investigate identifiers you are authorized to look into — your own accounts, your family's with their consent, or targets within an authorized engagement.",
       },
