@@ -74,6 +74,18 @@ export const API_CONNECTIONS: ApiConnection[] = [
     category: "Email & breach",
   },
   {
+    id: "endato",
+    label: "Endato / Enformion",
+    description:
+      "People search — name → address history, phones, relatives. Testing/searching spends a lookup credit (no free balance check).",
+    docsUrl: "https://enformiongo.readme.io/",
+    settingKey: "apikey.endato",
+    envFallback: "ENDATO_API_KEY",
+    testable: true,
+    category: "People search",
+    keyFormat: "AccessProfileName:AccessProfilePassword",
+  },
+  {
     id: "twilio",
     label: "Twilio Lookup",
     description:
@@ -84,6 +96,17 @@ export const API_CONNECTIONS: ApiConnection[] = [
     testable: true,
     category: "Phone",
     keyFormat: "AccountSID:AuthToken",
+  },
+  {
+    id: "trestle",
+    label: "Trestle",
+    description:
+      "Reverse phone → owner names and address history. Each lookup spends a small credit (~$0.07).",
+    docsUrl: "https://trestleiq.com/reverse-phone-api/",
+    settingKey: "apikey.trestle",
+    envFallback: "TRESTLE_API_KEY",
+    testable: true,
+    category: "Phone",
   },
   {
     id: "pwnedpasswords",

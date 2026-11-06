@@ -12,6 +12,8 @@ import { emailRepLookup } from "./tools/emailrep";
 import { leakCheckLookup } from "./tools/leakcheck";
 import { deHashedLookup } from "./tools/dehashed";
 import { twilioLookup } from "./tools/twilio";
+import { endatoPersonSearch } from "./tools/endato";
+import { trestleReversePhone } from "./tools/trestle";
 import { lookupEmail, type BreachHit } from "./breaches";
 import { emailDorks, phoneDorks, nameDorks, addressDorks } from "./tools/dorks";
 
@@ -31,7 +33,12 @@ async function settle<T>(
   }
 }
 
-async function runTool(tool: JobTool, target: string, outDir: string, params?: { level?: number }) {
+async function runTool(
+  tool: JobTool,
+  target: string,
+  outDir: string,
+  params?: { level?: number; location?: string }
+) {
   switch (tool) {
     case "sherlock":
       return runSherlock(target, { outDir });
@@ -73,16 +80,30 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
     case "phone": {
       const scan = await runPhoneScan(target);
       // Twilio needs E.164; fall back to the raw target if parsing failed.
-      const twilio = await settle(twilioLookup(scan.e164 || target));
+      const e164 = scan.e164 || target;
+      const [twilio, trestle] = await Promise.all([
+        settle(twilioLookup(e164)),
+        settle(trestleReversePhone(e164)),
+      ]);
       return {
         scan,
         twilio: twilio.data,
         twilioError: twilio.error,
+        trestle: trestle.data,
+        trestleError: trestle.error,
         links: phoneDorks(target),
       };
     }
-    case "name":
-      return { links: nameDorks(target) };
+    case "name": {
+      // Endato is key-gated and fail-soft; a supplied location narrows the
+      // people search to that city/state.
+      const people = await settle(endatoPersonSearch(target, params?.location));
+      return {
+        links: nameDorks(target),
+        people: people.data,
+        peopleError: people.error,
+      };
+    }
     case "address":
       return { geocode: await nominatimSearch(target), links: addressDorks(target) };
   }
@@ -91,7 +112,7 @@ async function runTool(tool: JobTool, target: string, outDir: string, params?: {
 export function startJob(
   tool: JobTool,
   target: string,
-  params?: { level?: number }
+  params?: { level?: number; location?: string }
 ): string {
   const id = crypto.randomUUID();
   const db = getDb();

@@ -15,7 +15,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid name" }, { status: 400 });
     }
 
-    const id = startJob("name", t);
+    const location =
+      typeof body.location === "string" && body.location.trim()
+        ? body.location.trim().slice(0, 80)
+        : undefined;
+
+    const id = startJob("name", t, location ? { location } : undefined);
     return NextResponse.json({ id });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "invalid request";

@@ -121,6 +121,19 @@ interface TwilioResult {
   callerName: string | null;
 }
 
+interface TrestleOwner {
+  name: string;
+  ageRange: string | null;
+  addresses: string[];
+}
+
+interface TrestleResult {
+  isValid: boolean;
+  lineType: string | null;
+  carrier: string | null;
+  owners: TrestleOwner[];
+}
+
 interface PhoneResult {
   scan: {
     valid: boolean;
@@ -136,11 +149,30 @@ interface PhoneResult {
   };
   twilio?: TwilioResult | null;
   twilioError?: string | null;
+  trestle?: TrestleResult | null;
+  trestleError?: string | null;
   links: DorkLink[];
+}
+
+interface PersonCandidate {
+  name: string;
+  age: number | null;
+  addresses: string[];
+  phones: string[];
+  emails: string[];
+  relatives: string[];
+  locationMatch: boolean;
+}
+
+interface PeopleResult {
+  candidates: PersonCandidate[];
+  locationFilter: string | null;
 }
 
 interface NameResult {
   links: DorkLink[];
+  people?: PeopleResult | null;
+  peopleError?: string | null;
 }
 
 interface GeoHit {
@@ -243,6 +275,7 @@ function FieldChips({ fields }: { fields: string[] }) {
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
+  const [location, setLocation] = useState("");
   const [mode, setMode] = useState<"auto" | ScanType>("auto");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,10 +422,12 @@ export default function Dashboard() {
     setError(null);
 
     try {
+      const payload: Record<string, string> = ENDPOINT[effective].body(query.trim());
+      if (effective === "name" && location.trim()) payload.location = location.trim();
       const res = await fetch(ENDPOINT[effective].path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ENDPOINT[effective].body(query.trim())),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -400,6 +435,7 @@ export default function Dashboard() {
       } else {
         await loadJobs();
         setQuery("");
+        setLocation("");
       }
     } catch {
       setError("Network error");
@@ -724,7 +760,8 @@ export default function Dashboard() {
         );
       }
       case "phone": {
-        const { scan, links, twilio, twilioError } = job.result as PhoneResult;
+        const { scan, links, twilio, twilioError, trestle, trestleError } =
+          job.result as PhoneResult;
         const rows: [string, string][] = [
           ["E.164", scan.e164],
           ["International", scan.international],
@@ -781,13 +818,102 @@ export default function Dashboard() {
               </>
             )}
 
+            {(trestleError || trestle) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mt-5 mb-2">
+                  Phone owners · Trestle
+                </h4>
+                {trestleError ? (
+                  <p className="text-ember-400 text-sm">{trestleError}</p>
+                ) : trestle && trestle.owners.length === 0 ? (
+                  <p className="text-mist-600 text-sm">No owner records.</p>
+                ) : trestle ? (
+                  <div className="space-y-2">
+                    {trestle.owners.map((o, i) => (
+                      <div key={i} className="rounded-lg border border-abyss-600 p-3">
+                        <span className="text-mist-100 text-sm">
+                          {o.name}
+                          {o.ageRange ? ` (${o.ageRange})` : ""}
+                        </span>
+                        {o.addresses.length > 0 && (
+                          <p className="text-mist-400 text-xs mt-1">
+                            {o.addresses.slice(0, 4).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+
             <LinksSection links={links} />
           </div>
         );
       }
       case "name": {
         const result = job.result as NameResult;
-        return <LinksSection links={result.links} />;
+        return (
+          <div>
+            {(result.peopleError || result.people) && (
+              <>
+                <h4 className="text-mist-400 text-xs uppercase tracking-wider mb-2">
+                  People records · Endato
+                </h4>
+                {result.peopleError ? (
+                  <p className="text-ember-400 text-sm">{result.peopleError}</p>
+                ) : result.people && result.people.candidates.length === 0 ? (
+                  <p className="text-mist-600 text-sm">No people records matched.</p>
+                ) : result.people ? (
+                  <div className="space-y-3">
+                    {result.people.locationFilter && (
+                      <p className="text-mist-600 text-xs">
+                        Ranked by match to “{result.people.locationFilter}”
+                      </p>
+                    )}
+                    {result.people.candidates.map((c, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-lg border p-3 ${
+                          c.locationMatch ? "border-sigil-500/50" : "border-abyss-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-mist-100 text-sm">
+                            {c.name}
+                            {c.age != null ? `, ${c.age}` : ""}
+                          </span>
+                          {c.locationMatch && (
+                            <span className="text-sigil-400 text-xs shrink-0">
+                              location match
+                            </span>
+                          )}
+                        </div>
+                        {c.addresses.length > 0 && (
+                          <p className="text-mist-400 text-xs mt-1">
+                            {c.addresses.slice(0, 4).join(" · ")}
+                          </p>
+                        )}
+                        {c.relatives.length > 0 && (
+                          <p className="text-mist-600 text-xs mt-1">
+                            Relatives: {c.relatives.slice(0, 6).join(", ")}
+                          </p>
+                        )}
+                        {(c.phones.length > 0 || c.emails.length > 0) && (
+                          <p className="text-mist-600 text-xs mt-1">
+                            {[...c.phones.slice(0, 3), ...c.emails.slice(0, 3)].join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="mt-5" />
+              </>
+            )}
+            <LinksSection links={result.links} />
+          </div>
+        );
       }
       case "address": {
         const result = job.result as AddressResult;
@@ -868,6 +994,17 @@ export default function Dashboard() {
           }}
           disabled={busy}
         />
+
+        {effective === "name" && (
+          <input
+            type="text"
+            className="input mb-4"
+            placeholder="City, State (optional — helps match the right person)"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            disabled={busy}
+          />
+        )}
 
         <button className="btn w-full" onClick={startScan} disabled={busy}>
           {busy ? "Scrying…" : ENDPOINT[effective].verb}

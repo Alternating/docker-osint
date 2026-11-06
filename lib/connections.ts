@@ -155,6 +155,66 @@ async function testIntelX(): Promise<string> {
   throw new Error("IntelX rejected the API key (tried paid and free instances)");
 }
 
+async function testEndato(): Promise<string> {
+  const key = getApiKey("endato");
+  if (!key) throw new Error("No API key is configured");
+
+  const idx = key.indexOf(":");
+  if (idx < 1 || idx === key.length - 1) {
+    throw new Error(
+      "Endato credential must be AccessProfileName:AccessProfilePassword"
+    );
+  }
+  const apName = key.slice(0, idx);
+  const apPassword = key.slice(idx + 1);
+
+  // No free balance endpoint; a guaranteed-miss name search is the cheapest
+  // validating call (a no-match returns an empty result).
+  const res = await fetch("https://devapi.enformion.com/PersonSearch", {
+    method: "POST",
+    headers: {
+      "galaxy-ap-name": apName,
+      "galaxy-ap-password": apPassword,
+      "galaxy-search-type": "Person",
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "user-agent": UA,
+    },
+    body: JSON.stringify({
+      FirstName: "Zzqx",
+      LastName: "Nonexistentperson",
+      Page: 1,
+      ResultsPerPage: 1,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Endato rejected the credentials");
+  }
+  if (!res.ok) throw new Error(`Endato responded ${res.status}`);
+  return "Credentials valid — Person Search reachable";
+}
+
+async function testTrestle(): Promise<string> {
+  const key = getApiKey("trestle");
+  if (!key) throw new Error("No API key is configured");
+
+  const res = await fetch(
+    "https://api.trestleiq.com/3.2/phone?phone=%2B12025550123",
+    {
+      headers: { "x-api-key": key, "user-agent": UA },
+      signal: AbortSignal.timeout(20_000),
+    }
+  );
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Trestle rejected the API key");
+  }
+  if (!res.ok) throw new Error(`Trestle responded ${res.status}`);
+  return "API key valid — Reverse Phone reachable";
+}
+
 const TESTERS: Record<string, Tester> = {
   hibp: hibpKeyStatus,
   pwnedpasswords: testPwnedPasswords,
@@ -163,6 +223,8 @@ const TESTERS: Record<string, Tester> = {
   twilio: testTwilio,
   dehashed: testDeHashed,
   intelx: testIntelX,
+  endato: testEndato,
+  trestle: testTrestle,
 };
 
 export async function testConnection(id: string): Promise<string> {

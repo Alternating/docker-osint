@@ -27,6 +27,17 @@ interface ScanResult {
     carrier?: string | null;
     callerName?: string | null;
   } | null;
+  trestle?: {
+    owners?: Array<{ name?: string; addresses?: string[] }>;
+  } | null;
+  people?: {
+    candidates?: Array<{
+      name?: string;
+      addresses?: string[];
+      relatives?: string[];
+      locationMatch?: boolean;
+    }>;
+  } | null;
 }
 
 function cap(items: string[], n = 15): string[] {
@@ -115,10 +126,33 @@ export function digestJob(job: JobRow): string | null {
           }${r.twilio.callerName ? `, caller name ${r.twilio.callerName}` : ""}`
         );
       }
+      for (const o of (r.trestle?.owners ?? []).slice(0, 5)) {
+        const addr = (o.addresses ?? [])[0];
+        lines.push(
+          `Public reverse-phone record: linked to ${o.name ?? "?"}${
+            addr ? ` at ${addr}` : ""
+          }`
+        );
+      }
+      break;
+    }
+    case "name": {
+      const cands = r.people?.candidates ?? [];
+      const matched = cands.filter((c) => c.locationMatch);
+      const show = (matched.length ? matched : cands).slice(0, 5);
+      for (const c of show) {
+        const addr = (c.addresses ?? [])[0];
+        const rels = (c.relatives ?? []).slice(0, 4).join(", ");
+        lines.push(
+          `Public people-record: ${c.name ?? "?"}${addr ? ` — ${addr}` : ""}${
+            rels ? ` — relatives: ${rels}` : ""
+          }`
+        );
+      }
       break;
     }
     default:
-      // name / address / domain scans are dork/geocode dossiers, not exposure data.
+      // address / domain scans are dork/geocode dossiers, not exposure data.
       return null;
   }
 
