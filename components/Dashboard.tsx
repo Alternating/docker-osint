@@ -253,6 +253,13 @@ export default function Dashboard() {
   // can't overwrite the currently open one.
   const openIdRef = useRef<string | null>(null);
 
+  const [reportBusy, setReportBusy] = useState(false);
+  const [report, setReport] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportMeta, setReportMeta] = useState<{ scansUsed: number; model: string } | null>(
+    null
+  );
+
   const effective: ScanType = mode === "auto" ? detect(query) : mode;
 
   const loadJobs = async () => {
@@ -315,6 +322,28 @@ export default function Dashboard() {
     openIdRef.current = null;
   };
 
+  const generateReport = async () => {
+    setReportBusy(true);
+    setReportError(null);
+    // Drop any previous report so a failed run can't leave stale text on screen.
+    setReport(null);
+    setReportMeta(null);
+    try {
+      const res = await fetch("/api/report", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setReportError(json.error ?? "Couldn't generate the report.");
+        return;
+      }
+      setReport(json.report);
+      setReportMeta({ scansUsed: json.scansUsed, model: json.model });
+    } catch {
+      setReportError("Network error");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   const clearHistory = async () => {
     if (!window.confirm("Clear all finished search history? Running scans are kept.")) {
       return;
@@ -329,6 +358,10 @@ export default function Dashboard() {
         return;
       }
       if (openStatus && openStatus !== "running") closeDetail();
+      // The report was synthesized from scans that no longer exist.
+      setReport(null);
+      setReportMeta(null);
+      setReportError(null);
       await loadJobs();
     } catch {
       setError("Couldn't clear history.");
@@ -842,6 +875,42 @@ export default function Dashboard() {
 
         {error && <p className="mt-4 text-ember-400 text-sm">{error}</p>}
       </div>
+
+      {jobs.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm text-mist-400 uppercase tracking-wider">
+              Security report
+            </h3>
+            <button
+              onClick={generateReport}
+              disabled={reportBusy}
+              className="btn-ghost text-xs px-3 py-1.5"
+            >
+              {reportBusy ? "Generating…" : report ? "Regenerate" : "Generate"}
+            </button>
+          </div>
+          {reportError && <p className="text-ember-400 text-sm mb-3">{reportError}</p>}
+          {reportBusy && !report && (
+            <div className="card p-6 text-mist-400 text-sm animate-pulse">
+              The Eye is weighing your exposure… this can take a minute.
+            </div>
+          )}
+          {report && (
+            <div className="card p-6">
+              {reportMeta && (
+                <p className="text-mist-600 text-xs mb-3">
+                  Synthesized from {reportMeta.scansUsed} scan
+                  {reportMeta.scansUsed === 1 ? "" : "s"} · {reportMeta.model}
+                </p>
+              )}
+              <pre className="whitespace-pre-wrap font-sans text-sm text-mist-100 leading-relaxed">
+                {report}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <div className="flex items-center justify-between mb-3">

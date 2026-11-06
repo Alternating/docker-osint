@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
 import PwnedPasswordsPanel from "./PwnedPasswords";
+import AssistantPanel from "./Assistant";
 
 interface Passkey {
   id: string;
@@ -630,14 +631,17 @@ function BreachImportsSection() {
   );
 }
 
-const TABS: { id: "passkeys" | "api" | "breaches"; label: string }[] = [
+type TabId = "passkeys" | "api" | "breaches" | "assistant";
+
+const TABS: { id: TabId; label: string }[] = [
   { id: "passkeys", label: "Passkeys" },
   { id: "api", label: "API Connections" },
   { id: "breaches", label: "Breach Imports" },
+  { id: "assistant", label: "Assistant" },
 ];
 
 export default function Settings() {
-  const [tab, setTab] = useState<"passkeys" | "api" | "breaches">("passkeys");
+  const [tab, setTab] = useState<TabId>("passkeys");
 
   return (
     <div className="space-y-8">
@@ -672,6 +676,7 @@ export default function Settings() {
         </div>
       )}
       {tab === "breaches" && <BreachImportsSection />}
+      {tab === "assistant" && <AssistantPanel />}
     </div>
   );
 }
